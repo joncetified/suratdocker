@@ -39,6 +39,7 @@
             <span>Alamat email</span>
             <div class="input-wrap"><b>＠</b>
               <input name="email" type="email" [(ngModel)]="loginForm.email"
+                (ngModelChange)="clearLoginFeedback()"
                 placeholder="nama@email.com" required>
             </div>
           </label>
@@ -46,7 +47,8 @@
             <span>Kata sandi</span>
             <div class="input-wrap"><b>⌑</b>
               <input name="password" [type]="showLoginPassword ? 'text' : 'password'"
-                [(ngModel)]="loginForm.password" required>
+                [(ngModel)]="loginForm.password"
+                (ngModelChange)="clearLoginFeedback()" required>
               <button class="reveal" type="button"
                 (click)="showLoginPassword = !showLoginPassword">◉</button>
             </div>
@@ -564,19 +566,23 @@
                   </small>
                 </span></span>
               <span><select [(ngModel)]="item.role"
-                [disabled]="item.role === 'WARGA'
-                  || (item.role === 'SUPER_ADMIN' && user?.role !== 'SUPER_ADMIN')">
+                [disabled]="item.role === 'WARGA' || !canEditUser(item)">
                 <option value="WARGA">Warga</option><option value="PETUGAS">Petugas</option>
                 <option value="KASI">Kasi</option><option value="LURAH">Lurah</option>
                 <option value="ADMIN">Administrator</option>
-                <option *ngIf="user?.role === 'SUPER_ADMIN'"
+                <option *ngIf="user?.role === 'SUPER_ADMIN' || item.role === 'SUPER_ADMIN'"
                   value="SUPER_ADMIN">Super Admin</option>
               </select></span>
-              <span><label class="switch"><input type="checkbox" [(ngModel)]="item.is_active">
+              <span><label class="switch"><input type="checkbox" [(ngModel)]="item.is_active"
+                [disabled]="!canEditUser(item)">
                 <i></i>{{ item.is_active ? 'Aktif' : 'Nonaktif' }}</label></span>
               <span class="row-actions">
-                <button class="outline-button" (click)="updateUser(item)">Simpan</button>
-                <button class="danger-button" *ngIf="item.id !== user?.id"
+                <span class="protected-label" *ngIf="!canEditUser(item)">
+                  {{ item.id === user?.id ? 'Akun Anda' : 'Dilindungi' }}
+                </span>
+                <button class="outline-button" *ngIf="canEditUser(item)"
+                  (click)="updateUser(item)">Simpan</button>
+                <button class="danger-button" *ngIf="canDeleteUser(item)"
                   (click)="deleteUser(item)">Hapus</button>
               </span>
             </div>

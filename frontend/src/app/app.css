@@ -182,6 +182,7 @@ dd { margin: 0; color: #2d3a50; font-size: 12px; line-height: 1.55; }
 .brand-mark img, .mini-mark img { width: 100%; height: 100%; object-fit: contain; border-radius: inherit; }
 .mini-mark span { display: block; }
 .row-actions { display: flex; gap: 5px; justify-content: flex-end; }
+.protected-label { color: #71807b; font-size: 10px; font-weight: 700; white-space: nowrap; }
 .user-row { grid-template-columns: 1.6fr .8fr .6fr 160px; }
 .income-dashboard { margin-bottom: 18px; }
 .income-compare { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; padding: 20px 24px; }

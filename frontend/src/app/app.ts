@@ -314,6 +314,11 @@ export class App implements OnInit {
       });
   }
 
+  clearLoginFeedback() {
+    this.error = '';
+    this.pendingActivationEmail = '';
+  }
+
   register() {
     if (this.registerForm.password !== this.registerForm.confirmPassword) {
       this.error = 'Konfirmasi password tidak sama.';
@@ -629,6 +634,17 @@ export class App implements OnInit {
       next: () => this.notify(`Akun ${item.name} diperbarui.`),
       error: (error) => this.handleError(error),
     });
+  }
+
+  canEditUser(item: User) {
+    if (!this.user || item.id === this.user.id) return false;
+    return item.role !== 'SUPER_ADMIN' || this.user.role === 'SUPER_ADMIN';
+  }
+
+  canDeleteUser(item: User) {
+    if (!this.user || item.id === this.user.id) return false;
+    return this.user.role === 'SUPER_ADMIN'
+      || !['ADMIN', 'SUPER_ADMIN'].includes(item.role);
   }
 
   createEmployee() {
