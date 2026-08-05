@@ -1,0 +1,107 @@
+name: suratapp
+
+services:
+  database:
+    image: postgres:18-alpine
+    container_name: suratapp-database
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-suratapp}
+      POSTGRES_USER: ${POSTGRES_USER:-suratapp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD wajib diisi di file .env}
+      TZ: Asia/Jakarta
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${POSTGRES_HOST_PORT:-5433}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-suratapp} -d ${POSTGRES_DB:-suratapp}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  backend:
+    build: ./backend
+    container_name: suratapp-backend
+    restart: unless-stopped
+    init: true
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-suratapp}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD wajib diisi di file .env}@database:5432/${POSTGRES_DB:-suratapp}
+      DATABASE_POOL_MAX: 10
+      DATABASE_CONNECTION_TIMEOUT_MS: 5000
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET wajib diisi di file .env}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
+      INITIAL_ACCOUNT_PASSWORD: ${INITIAL_ACCOUNT_PASSWORD:?INITIAL_ACCOUNT_PASSWORD wajib diisi di file .env}
+      SEED_ACCOUNT_PASSWORD: ${SEED_ACCOUNT_PASSWORD:?SEED_ACCOUNT_PASSWORD wajib diisi di file .env}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:4200}
+      PUBLIC_APP_URL: ${PUBLIC_APP_URL:-http://localhost:4200}
+      MAIL_PREVIEW_URL: ${MAIL_PREVIEW_URL:-http://localhost:8025}
+      MAIL_DELIVERY_MODE: ${MAIL_DELIVERY_MODE:-smtp}
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-SuratBatam <noreply@suratbatam.local>}
+      WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN:-}
+      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+      UPLOAD_DIR: /app/uploads
+      BACKUP_DIR: /app/backups
+      TZ: Asia/Jakarta
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${BACKEND_PORT:-3000}:3000"
+    volumes:
+      - document_uploads:/app/uploads
+      - database_backups:/app/backups
+    depends_on:
+      database:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  mailpit:
+    image: axllent/mailpit:v1.30.5
+    container_name: suratapp-mailpit
+    restart: unless-stopped
+    environment:
+      MP_DATABASE: /data/mailpit.db
+      TZ: Asia/Jakarta
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${MAILPIT_PORT:-8025}:8025"
+    volumes:
+      - mailpit_data:/data
+
+  frontend:
+    build: ./frontend
+    container_name: suratapp-frontend
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${FRONTEND_PORT:-4200}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1/ >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+volumes:
+  postgres_data:
+  document_uploads:
+  database_backups:
+  mailpit_data:

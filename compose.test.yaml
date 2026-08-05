@@ -1,0 +1,64 @@
+name: suratapp-integration
+
+services:
+  database-test:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: suratapp_test
+      POSTGRES_USER: suratapp_test
+      POSTGRES_PASSWORD: SuratApp_Test_DB_2026!
+      TZ: Asia/Jakarta
+    tmpfs:
+      - /var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U suratapp_test -d suratapp_test"]
+      interval: 3s
+      timeout: 3s
+      retries: 15
+
+  backend-test:
+    build: ./backend
+    command: ["sh", "-c", "npm run seed && npm start"]
+    environment:
+      NODE_ENV: test
+      PORT: 3000
+      DATABASE_URL: postgresql://suratapp_test:SuratApp_Test_DB_2026!@database-test:5432/suratapp_test
+      DATABASE_POOL_MAX: 5
+      DATABASE_CONNECTION_TIMEOUT_MS: 5000
+      JWT_SECRET: integration-test-secret-aman-minimal-32-karakter
+      JWT_EXPIRES_IN: 8h
+      INITIAL_ACCOUNT_PASSWORD: Batam123!
+      SEED_ACCOUNT_PASSWORD: Warga123!
+      CORS_ORIGIN: http://localhost:4200
+      PUBLIC_APP_URL: http://localhost:4200
+      MAIL_DELIVERY_MODE: test
+      UPLOAD_DIR: /app/uploads
+      BACKUP_DIR: /app/backups
+      TZ: Asia/Jakarta
+    tmpfs:
+      - /app/uploads:uid=1000,gid=1000,mode=0750
+      - /app/backups:uid=1000,gid=1000,mode=0750
+    depends_on:
+      database-test:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://localhost:3000/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
+      interval: 3s
+      timeout: 3s
+      retries: 15
+
+  tester:
+    image: node:24-alpine
+    working_dir: /tests
+    volumes:
+      - ./scripts:/tests:ro
+    environment:
+      API_URL: http://backend-test:3000/api
+    command: ["node", "integration-test.mjs"]
+    depends_on:
+      backend-test:
+        condition: service_healthy

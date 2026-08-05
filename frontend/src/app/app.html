@@ -1,0 +1,995 @@
+<ng-container *ngIf="!globalNotFound; else global404">
+<ng-container *ngIf="!user; else dashboard">
+  <main class="login-page">
+    <section class="brand-panel">
+      <div class="brand-mark">
+        <img *ngIf="siteSettings.logo_data" [src]="siteSettings.logo_data" alt="Logo instansi">
+        <span *ngIf="!siteSettings.logo_data">SB</span>
+      </div>
+      <div class="brand-copy">
+        <span class="eyebrow light">PELAYANAN DIGITAL KELURAHAN</span>
+        <h1>{{ siteSettings.company_name }}<br><em>lebih mudah.</em></h1>
+        <p>Ajukan, pantau, dan ambil surat keterangan domisili tanpa antre panjang.</p>
+      </div>
+      <div class="location-chip">⌖ {{ siteSettings.address }}</div>
+      <div class="orb orb-one"></div>
+      <div class="orb orb-two"></div>
+    </section>
+
+    <section class="login-panel">
+      <div class="login-box">
+        <span class="eyebrow">PORTAL SURAT DOMISILI</span>
+        <h2>{{ registerMode ? 'Buat akun warga'
+          : forgotMode ? 'Reset password'
+          : resetMode ? 'Buat password baru'
+          : 'Masuk ke akun Anda' }}</h2>
+        <p class="muted">{{ registerMode
+          ? 'Setelah mendaftar, akun harus diaktifkan melalui tautan email.'
+          : forgotMode ? 'Pilih pengiriman petunjuk melalui email atau WhatsApp.'
+          : resetMode ? 'Gunakan password baru yang kuat untuk akun Anda.'
+          : 'Gunakan akun yang sudah aktif untuk melanjutkan.' }}</p>
+        <div class="alert success" *ngIf="authNotice">{{ authNotice }}</div>
+        <a class="mail-preview-link" *ngIf="authNotice && emailPreviewUrl"
+          [href]="emailPreviewUrl" target="_blank" rel="noopener">
+          Buka kotak email lokal →
+        </a>
+
+        <form *ngIf="!registerMode && !forgotMode && !resetMode" (ngSubmit)="login()">
+          <label class="field">
+            <span>Alamat email</span>
+            <div class="input-wrap"><b>＠</b>
+              <input name="email" type="email" [(ngModel)]="loginForm.email"
+                placeholder="nama@email.com" required>
+            </div>
+          </label>
+          <label class="field">
+            <span>Kata sandi</span>
+            <div class="input-wrap"><b>⌑</b>
+              <input name="password" [type]="showLoginPassword ? 'text' : 'password'"
+                [(ngModel)]="loginForm.password" required>
+              <button class="reveal" type="button"
+                (click)="showLoginPassword = !showLoginPassword">◉</button>
+            </div>
+          </label>
+          <div class="alert error" *ngIf="error">{{ error }}</div>
+          <button class="forgot-link" type="button"
+            (click)="forgotMode = true; authNotice = ''; error = ''">
+            Lupa password?
+          </button>
+          <button class="primary login-button" type="submit" [disabled]="busy">
+            <span *ngIf="!busy">Masuk ke Portal →</span>
+            <span *ngIf="busy">Memeriksa akun...</span>
+          </button>
+          <button class="register-link" type="button" (click)="registerMode = true; error = ''">
+            Belum punya akun? <b>Daftar sebagai warga</b>
+          </button>
+          <button class="register-link" type="button"
+            *ngIf="pendingActivationEmail" (click)="resendActivation()">
+            Belum menerima email? <b>Kirim ulang aktivasi</b>
+          </button>
+        </form>
+        <form *ngIf="registerMode" (ngSubmit)="register()">
+          <div class="register-grid">
+            <label class="field"><span>NIK (16 digit) *</span>
+              <input name="registerNik" [(ngModel)]="registerForm.nik"
+                inputmode="numeric" pattern="[0-9]{16}" maxlength="16" required></label>
+            <label class="field"><span>Nama lengkap *</span>
+              <input name="registerName" [(ngModel)]="registerForm.name" required></label>
+            <label class="field wide"><span>Alamat email *</span>
+              <input name="registerEmail" type="email" [(ngModel)]="registerForm.email" required></label>
+            <label class="field wide"><span>Nomor telepon *</span>
+              <input name="registerPhone" type="tel" [(ngModel)]="registerForm.phone"
+                placeholder="Contoh: 081234567890" required></label>
+            <label class="field"><span>Password *</span>
+              <input name="registerPassword" type="password"
+                [(ngModel)]="registerForm.password" minlength="8" required></label>
+            <label class="field"><span>Konfirmasi password *</span>
+              <input name="registerConfirmPassword" type="password"
+                [(ngModel)]="registerForm.confirmPassword" minlength="8" required></label>
+            <label class="field wide"><span>Alamat lengkap *</span>
+              <textarea name="registerAddress" [(ngModel)]="registerForm.address"
+                rows="3" placeholder="Nama jalan/perumahan, nomor rumah, RT/RW" required></textarea></label>
+          </div>
+          <p class="password-hint">Password minimal 8 karakter dan memuat huruf besar, huruf kecil, serta angka.</p>
+          <label class="consent-check">
+            <input name="acceptedTerms" type="checkbox"
+              [(ngModel)]="registerForm.acceptedTerms" required>
+            <span>Saya menyatakan NIK dan identitas yang didaftarkan benar serta milik saya.</span>
+          </label>
+          <div class="alert error" *ngIf="error">{{ error }}</div>
+          <button class="primary login-button" type="submit" [disabled]="busy">
+            {{ busy ? 'Mendaftarkan...' : 'Daftar & Kirim Email Aktivasi →' }}
+          </button>
+          <button class="register-link" type="button" (click)="registerMode = false; error = ''">
+            ← Kembali ke halaman masuk
+          </button>
+        </form>
+        <form *ngIf="forgotMode" (ngSubmit)="requestPasswordReset()">
+          <label class="field"><span>Metode pengiriman</span>
+            <select name="resetChannel" [(ngModel)]="forgotForm.channel">
+              <option value="EMAIL">Email</option>
+              <option value="WHATSAPP">WhatsApp</option>
+            </select>
+          </label>
+          <label class="field"><span>{{ forgotForm.channel === 'EMAIL'
+            ? 'Alamat email' : 'Nomor WhatsApp' }}</span>
+            <input name="resetIdentifier" [(ngModel)]="forgotForm.identifier" required>
+          </label>
+          <div class="alert error" *ngIf="error">{{ error }}</div>
+          <button class="primary login-button" type="submit" [disabled]="busy">
+            {{ busy ? 'Mengirim...' : 'Kirim Petunjuk Reset' }}
+          </button>
+          <button class="register-link" type="button"
+            (click)="forgotMode = false; error = ''">← Kembali ke login</button>
+        </form>
+        <form *ngIf="resetMode" (ngSubmit)="confirmPasswordReset()">
+          <label class="field"><span>Password baru</span>
+            <input name="resetNewPassword" type="password"
+              [(ngModel)]="resetForm.newPassword" minlength="8" required>
+          </label>
+          <label class="field"><span>Konfirmasi password</span>
+            <input name="resetConfirmPassword" type="password"
+              [(ngModel)]="resetForm.confirmPassword" minlength="8" required>
+          </label>
+          <p class="password-hint">Minimal 8 karakter dengan huruf besar, kecil, dan angka.</p>
+          <div class="alert error" *ngIf="error">{{ error }}</div>
+          <button class="primary login-button" type="submit" [disabled]="busy">
+            {{ busy ? 'Menyimpan...' : 'Simpan Password Baru' }}
+          </button>
+        </form>
+      </div>
+    </section>
+  </main>
+</ng-container>
+
+<ng-template #dashboard>
+  <div class="app-shell">
+    <aside [class.open]="mobileMenu">
+      <div class="sidebar-brand">
+        <div class="mini-mark">
+          <img *ngIf="siteSettings.logo_data" [src]="siteSettings.logo_data" alt="">
+          <span *ngIf="!siteSettings.logo_data">SB</span>
+        </div>
+        <div><strong>{{ siteSettings.company_name }}</strong><small>Portal Pelayanan</small></div>
+      </div>
+      <nav>
+        <span class="nav-caption">MENU UTAMA</span>
+        <button *ngIf="hasPage('dashboard')" [class.active]="activePage === 'dashboard'"
+          (click)="navigate('dashboard')">
+          <i>⌂</i> Ringkasan
+        </button>
+        <button *ngIf="hasPage('applications')"
+          [class.active]="activePage === 'applications' || activePage === 'detail'"
+          (click)="navigate('applications')">
+          <i>▤</i> {{ user?.role === 'WARGA' ? 'Pengajuan Saya' : 'Daftar Pengajuan' }}
+          <b class="nav-count" *ngIf="pendingForRole()">{{ pendingForRole() }}</b>
+        </button>
+        <button *ngIf="user?.role === 'WARGA' && hasPage('new_application')"
+          [class.active]="activePage === 'new'"
+          (click)="navigate('new')"><i>＋</i> Buat Pengajuan</button>
+        <button *ngIf="hasPage('reports')" [class.active]="activePage === 'reports'"
+          (click)="navigate('reports')"><i>▥</i> Laporan</button>
+        <button *ngIf="hasPage('income')" [class.active]="activePage === 'income'"
+          (click)="navigate('income')"><i>Rp</i> Pendapatan</button>
+
+        <span class="nav-caption second"
+          *ngIf="hasPage('users') || hasPage('permissions') || hasPage('settings')
+            || hasPage('data_tools') || hasPage('backups') || hasPage('trash')">
+          MANAJEMEN SISTEM
+        </span>
+        <button *ngIf="hasPage('users')" [class.active]="activePage === 'users'"
+          (click)="navigate('users')"><i>♙</i> Kelola Pengguna</button>
+        <button *ngIf="hasPage('permissions')" [class.active]="activePage === 'permissions'"
+          (click)="navigate('permissions')"><i>☑</i> Hak Akses</button>
+        <button *ngIf="hasPage('settings')" [class.active]="activePage === 'settings'"
+          (click)="navigate('settings')"><i>⚙</i> Pengaturan Website</button>
+        <button *ngIf="hasPage('data_tools')" [class.active]="activePage === 'data-tools'"
+          (click)="navigate('data-tools')"><i>⇄</i> Export / Import</button>
+        <button *ngIf="hasPage('backups')" [class.active]="activePage === 'backups'"
+          (click)="navigate('backups')"><i>⛁</i> Backup Database</button>
+        <button *ngIf="hasPage('trash')" [class.active]="activePage === 'trash'"
+          (click)="navigate('trash')"><i>♲</i> Data Terhapus</button>
+        <button *ngIf="hasPage('profile')" [class.active]="activePage === 'profile'"
+          (click)="navigate('profile')">
+          <i>◎</i> Profil & Keamanan
+        </button>
+
+        <span class="nav-caption second">INFORMASI</span>
+        <button *ngIf="hasPage('flow')" [class.active]="activePage === 'flow'"
+          (click)="navigate('flow')">
+          <i>↝</i> Alur Pelayanan
+        </button>
+      </nav>
+      <div class="sidebar-user">
+        <div class="avatar">{{ user?.name?.charAt(0) }}</div>
+        <div><strong>{{ user?.name }}</strong><small>{{ roleLabels[user!.role] }}</small></div>
+        <button title="Keluar" (click)="logout()">↪</button>
+      </div>
+    </aside>
+
+    <section class="main-area">
+      <header>
+        <button class="menu-toggle" (click)="mobileMenu = !mobileMenu">☰</button>
+        <div>
+          <span class="header-label">{{ roleLabels[user!.role] }}</span>
+          <strong>{{ siteSettings.company_name }} · Batam Kota</strong>
+        </div>
+        <div class="header-actions">
+          <span class="live-dot"></span><span>Sistem aktif</span>
+          <div class="header-avatar">{{ user?.name?.charAt(0) }}</div>
+        </div>
+      </header>
+
+      <main class="content">
+        <div class="alert error" *ngIf="error">
+          {{ error }} <button (click)="error = ''">×</button>
+        </div>
+
+        <ng-container *ngIf="activePage === 'dashboard'">
+          <div class="welcome">
+            <div>
+              <span class="eyebrow">SELAMAT DATANG</span>
+              <h1>Halo, {{ user?.name?.split(' ')?.[0] }}!</h1>
+              <p *ngIf="user?.role === 'WARGA'">Pantau proses surat domisili Anda dari satu tempat.</p>
+              <p *ngIf="user?.role !== 'WARGA'">Berikut kondisi pelayanan surat domisili hari ini.</p>
+            </div>
+            <button *ngIf="user?.role === 'WARGA'" class="primary" (click)="navigate('new')">
+              ＋ Ajukan Surat Baru
+            </button>
+          </div>
+
+          <section class="stats-grid">
+            <article class="stat-card">
+              <div class="stat-icon blue">▤</div>
+              <div><span>Total Pengajuan</span><strong>{{ applications.length }}</strong>
+                <small>Seluruh data tercatat</small></div>
+            </article>
+            <article class="stat-card">
+              <div class="stat-icon amber">◷</div>
+              <div><span>Perlu Tindakan</span><strong>{{ pendingForRole() }}</strong>
+                <small>Sesuai kewenangan Anda</small></div>
+            </article>
+            <article class="stat-card">
+              <div class="stat-icon green">✓</div>
+              <div><span>Selesai</span><strong>{{ countStatus('SELESAI') }}</strong>
+                <small>Surat telah diserahkan</small></div>
+            </article>
+            <article class="stat-card">
+              <div class="stat-icon red">!</div>
+              <div><span>Perlu Perbaikan</span><strong>{{ countStatus('PERLU_DIPERBAIKI') }}</strong>
+                <small>Menunggu warga</small></div>
+            </article>
+          </section>
+
+          <section class="panel income-dashboard" *ngIf="hasPage('income')">
+            <div class="panel-heading">
+              <div><span class="eyebrow">LAPORAN PENDAPATAN</span>
+                <h2>Perbandingan pendapatan layanan</h2></div>
+              <button class="text-button" (click)="navigate('income')">Buka rincian →</button>
+            </div>
+            <div class="income-compare">
+              <article><span>DAILY · TODAY</span>
+                <strong>{{ incomeSummary.today | currency:'IDR':'symbol':'1.0-0':'id' }}</strong></article>
+              <article><span>DAILY · YESTERDAY</span>
+                <strong>{{ incomeSummary.yesterday | currency:'IDR':'symbol':'1.0-0':'id' }}</strong></article>
+              <article><span>MONTHLY · THIS MONTH</span>
+                <strong>{{ incomeSummary.this_month | currency:'IDR':'symbol':'1.0-0':'id' }}</strong></article>
+              <article><span>MONTHLY · LAST MONTH</span>
+                <strong>{{ incomeSummary.last_month | currency:'IDR':'symbol':'1.0-0':'id' }}</strong></article>
+            </div>
+          </section>
+
+          <section class="panel recent-panel">
+            <div class="panel-heading">
+              <div><span class="eyebrow">AKTIVITAS TERBARU</span><h2>Pengajuan terkini</h2></div>
+              <button class="text-button" (click)="navigate('applications')">Lihat semua →</button>
+            </div>
+            <div class="empty-state" *ngIf="applications.length === 0">
+              <div>✉</div><h3>Belum ada pengajuan</h3>
+              <p>Data yang diajukan akan muncul di bagian ini.</p>
+            </div>
+            <div class="application-list compact" *ngIf="applications.length">
+              <button class="application-row" *ngFor="let item of applications.slice(0, 5)"
+                (click)="openDetail(item)">
+                <div class="doc-icon">▤</div>
+                <div class="app-main"><strong>{{ item.submission_code }}</strong>
+                  <span>{{ item.full_name }} · {{ item.purpose }}</span></div>
+                <span class="status" [ngClass]="statusClass(item.status)">
+                  {{ statusLabels[item.status] || item.status }}
+                </span>
+                <span class="date">{{ item.updated_at | date:'dd MMM yyyy':'':'id' }}</span>
+                <span>›</span>
+              </button>
+            </div>
+          </section>
+        </ng-container>
+
+        <ng-container *ngIf="activePage === 'applications'">
+          <div class="page-title">
+            <div><span class="eyebrow">LAYANAN DOMISILI</span>
+              <h1>{{ user?.role === 'WARGA' ? 'Pengajuan Saya' : 'Daftar Pengajuan' }}</h1>
+              <p>Telusuri status dan rincian setiap pengajuan surat.</p>
+            </div>
+            <button *ngIf="user?.role === 'WARGA'" class="primary" (click)="navigate('new')">
+              ＋ Buat Pengajuan
+            </button>
+          </div>
+          <section class="panel">
+            <div class="table-head">
+              <span>KODE / PEMOHON</span><span>ALAMAT DOMISILI</span>
+              <span>STATUS</span><span>DIPERBARUI</span><span></span>
+            </div>
+            <div class="empty-state" *ngIf="applications.length === 0">
+              <div>⌁</div><h3>Daftar masih kosong</h3>
+              <p>Belum ada pengajuan surat domisili.</p>
+            </div>
+            <button class="table-row" *ngFor="let item of applications" (click)="openDetail(item)">
+              <span><strong>{{ item.submission_code }}</strong><small>{{ item.full_name }}</small></span>
+              <span><strong>{{ item.village }}, {{ item.district }}</strong>
+                <small>{{ item.domicile_address }}</small></span>
+              <span><b class="status" [ngClass]="statusClass(item.status)">
+                {{ statusLabels[item.status] || item.status }}</b></span>
+              <span>{{ item.updated_at | date:'dd MMM yyyy, HH:mm' }}</span>
+              <span class="chevron">›</span>
+            </button>
+          </section>
+        </ng-container>
+
+        <ng-container *ngIf="activePage === 'new' && user?.role === 'WARGA'">
+          <button class="back-button" (click)="navigate('applications')">← Kembali</button>
+          <div class="page-title">
+            <div><span class="eyebrow">{{ editingId ? 'PERBAIKAN PENGAJUAN' : 'FORMULIR DIGITAL' }}</span>
+              <h1>{{ editingId ? 'Perbaiki Surat Domisili' : 'Pengajuan Surat Domisili' }}</h1>
+              <p>{{ editingId
+                ? 'Perbaiki data sesuai catatan pemeriksa. Dokumen baru bersifat opsional.'
+                : 'Pastikan data sesuai dengan KTP dan KK yang Anda unggah.' }}</p></div>
+          </div>
+          <form class="panel form-panel" (ngSubmit)="submitApplication()">
+            <div class="section-title"><span>1</span><div><h2>Data pemohon</h2>
+              <p>Identitas sesuai dokumen kependudukan.</p></div></div>
+            <div class="form-grid">
+              <label class="field"><span>NIK *</span>
+                <input name="nik" [(ngModel)]="applicationForm.nik"
+                  maxlength="16" readonly required></label>
+              <label class="field"><span>Nama lengkap *</span>
+                <input name="fullName" [(ngModel)]="applicationForm.fullName"
+                  readonly required></label>
+              <label class="field"><span>Tempat lahir *</span>
+                <input name="birthPlace" [(ngModel)]="applicationForm.birthPlace" required></label>
+              <label class="field"><span>Tanggal lahir *</span>
+                <input name="birthDate" type="date" [(ngModel)]="applicationForm.birthDate" required></label>
+              <label class="field wide"><span>Alamat asal *</span>
+                <textarea name="originAddress" [(ngModel)]="applicationForm.originAddress"
+                  rows="3" required></textarea></label>
+            </div>
+
+            <div class="section-title"><span>2</span><div><h2>Informasi domisili</h2>
+              <p>Alamat tempat tinggal saat ini di wilayah Batam.</p></div></div>
+            <div class="form-grid">
+              <label class="field wide"><span>Alamat domisili *</span>
+                <textarea name="domicileAddress" [(ngModel)]="applicationForm.domicileAddress"
+                  rows="3" required></textarea></label>
+              <label class="field"><span>RT / RW</span>
+                <input name="neighborhood" [(ngModel)]="applicationForm.neighborhood"
+                  placeholder="Contoh: 003 / 006"></label>
+              <label class="field"><span>Kelurahan *</span>
+                <input name="village" [(ngModel)]="applicationForm.village"
+                  readonly required></label>
+              <label class="field"><span>Kecamatan *</span>
+                <input name="district" [(ngModel)]="applicationForm.district"
+                  readonly required></label>
+              <label class="field"><span>Lama tinggal *</span>
+                <input name="stayDuration" [(ngModel)]="applicationForm.stayDuration"
+                  placeholder="Contoh: 2 tahun" required></label>
+              <label class="field wide"><span>Tujuan pembuatan surat *</span>
+                <textarea name="purpose" [(ngModel)]="applicationForm.purpose"
+                  rows="3" required></textarea></label>
+            </div>
+
+            <div class="section-title"><span>3</span><div><h2>Dokumen pendukung</h2>
+              <p>Format PDF, JPG, atau PNG; maksimal 5 MB per dokumen.</p></div></div>
+            <div class="upload-grid">
+              <label class="upload-box" [class.has-file]="ktpFile">
+                <input type="file" accept=".pdf,.jpg,.jpeg,.png"
+                  (change)="fileSelected($event, 'ktp')" [required]="!editingId">
+                <b>{{ ktpFile ? '✓' : '▧' }}</b><strong>KTP {{ editingId ? '' : '*' }}</strong>
+                <span>{{ ktpFile?.name || (editingId ? 'Pilih hanya jika ingin mengganti' : 'Klik untuk memilih berkas') }}</span>
+              </label>
+              <label class="upload-box" [class.has-file]="kkFile">
+                <input type="file" accept=".pdf,.jpg,.jpeg,.png"
+                  (change)="fileSelected($event, 'kk')" [required]="!editingId">
+                <b>{{ kkFile ? '✓' : '▧' }}</b><strong>Kartu Keluarga {{ editingId ? '' : '*' }}</strong>
+                <span>{{ kkFile?.name || (editingId ? 'Pilih hanya jika ingin mengganti' : 'Klik untuk memilih berkas') }}</span>
+              </label>
+              <label class="upload-box" [class.has-file]="supportingFile">
+                <input type="file" accept=".pdf,.jpg,.jpeg,.png"
+                  (change)="fileSelected($event, 'supporting')">
+                <b>{{ supportingFile ? '✓' : '＋' }}</b><strong>Dokumen pendukung</strong>
+                <span>{{ supportingFile?.name || 'Surat pengantar RT/RW (opsional)' }}</span>
+              </label>
+            </div>
+            <div class="form-submit">
+              <p>Dengan mengirim, Anda menyatakan bahwa data yang diberikan benar.</p>
+              <div class="form-submit-actions">
+                <button class="outline-button" type="button" [disabled]="busy"
+                  (click)="submitApplication('draft')">Simpan draf</button>
+                <button class="primary" type="submit" [disabled]="busy">
+                  {{ busy ? 'Mengirim...' : (editingId ? 'Kirim Pengajuan →' : 'Kirim Pengajuan →') }}
+                </button>
+              </div>
+            </div>
+          </form>
+        </ng-container>
+
+        <ng-container *ngIf="activePage === 'detail' && selected">
+          <button class="back-button" (click)="navigate('applications')">← Kembali ke daftar</button>
+          <div class="detail-hero">
+            <div><span class="eyebrow">RINCIAN PENGAJUAN</span>
+              <h1>{{ selected.submission_code }}</h1>
+              <p>Diajukan oleh {{ selected.full_name }} ·
+                {{ selected.submitted_at | date:'dd MMMM yyyy, HH:mm' }}</p></div>
+            <div class="detail-actions">
+              <button class="outline-button" (click)="printPage()">Cetak bukti</button>
+              <button class="danger-button" *ngIf="user?.role === 'SUPER_ADMIN'"
+                (click)="deleteSelectedApplication()">Hapus data</button>
+              <span class="status large" [ngClass]="statusClass(selected.status)">
+                {{ statusLabels[selected.status] || selected.status }}
+              </span>
+            </div>
+          </div>
+
+          <div class="detail-grid">
+            <section>
+              <article class="panel detail-card">
+                <div class="panel-heading"><h2>Data pemohon</h2><span class="card-icon">♙</span></div>
+                <dl>
+                  <div><dt>NIK</dt><dd>{{ selected.nik }}</dd></div>
+                  <div><dt>Nama lengkap</dt><dd>{{ selected.full_name }}</dd></div>
+                  <div><dt>Tempat, tanggal lahir</dt><dd>{{ selected.birth_place }},
+                    {{ selected.birth_date | date:'dd MMMM yyyy' }}</dd></div>
+                  <div class="wide"><dt>Alamat asal</dt><dd>{{ selected.origin_address }}</dd></div>
+                </dl>
+              </article>
+              <article class="panel detail-card">
+                <div class="panel-heading"><h2>Informasi domisili</h2><span class="card-icon">⌖</span></div>
+                <dl>
+                  <div class="wide"><dt>Alamat domisili</dt><dd>{{ selected.domicile_address }}</dd></div>
+                  <div><dt>RT / RW</dt><dd>{{ selected.neighborhood || '—' }}</dd></div>
+                  <div><dt>Kelurahan / Kecamatan</dt>
+                    <dd>{{ selected.village }} / {{ selected.district }}</dd></div>
+                  <div><dt>Lama tinggal</dt><dd>{{ selected.stay_duration }}</dd></div>
+                  <div><dt>Tujuan surat</dt><dd>{{ selected.purpose }}</dd></div>
+                </dl>
+              </article>
+              <article class="panel detail-card">
+                <div class="panel-heading"><h2>Dokumen</h2><span class="card-icon">▧</span></div>
+                <div class="document-list">
+                  <button *ngFor="let doc of selected.documents" (click)="openDocument(doc)">
+                    <span class="file-icon">PDF</span>
+                    <span><strong>{{ doc.type }}</strong><small>{{ doc.name }} ·
+                      {{ doc.size / 1024 | number:'1.0-0' }} KB</small></span><b>↗</b>
+                  </button>
+                </div>
+              </article>
+            </section>
+
+            <aside class="detail-side">
+              <article class="panel action-card" *ngIf="selected.current_note">
+                <span class="eyebrow">CATATAN TERAKHIR</span>
+                <p>{{ selected.current_note }}</p>
+              </article>
+              <article class="panel result-card" *ngIf="selected.letter_number">
+                <span class="eyebrow">SURAT DISETUJUI</span>
+                <h3>{{ selected.letter_number }}</h3>
+                <p *ngIf="selected.pickup_at">Jadwal:
+                  <b>{{ selected.pickup_at | date:'dd MMMM yyyy, HH:mm' }}</b></p>
+                <div class="pickup-code" *ngIf="selected.pickup_code">
+                  <span>KODE PENGAMBILAN</span><strong>{{ selected.pickup_code }}</strong>
+                </div>
+              </article>
+              <article class="panel action-card" *ngIf="
+                can('REQUEST_REVISION') || can('VERIFY') || can('RETURN') ||
+                can('REJECT') || can('APPROVE') || can('SCHEDULE') ||
+                can('COMPLETE') || can('RESUBMIT') || can('EDIT_DRAFT') || can('CANCEL')">
+                <span class="eyebrow">TINDAKAN</span><h2>Proses pengajuan</h2>
+                <label class="field" *ngIf="can('REQUEST_REVISION') || can('RETURN') || can('REJECT')">
+                  <span>Catatan pemeriksaan</span>
+                  <textarea [(ngModel)]="actionNote" rows="4"
+                    placeholder="Tuliskan alasan atau detail perbaikan..."></textarea>
+                </label>
+                <label class="field" *ngIf="can('SCHEDULE')"><span>Jadwal pengambilan</span>
+                  <input type="datetime-local" [(ngModel)]="pickupAt"></label>
+                <div class="action-buttons">
+                  <button class="danger-button" *ngIf="can('REQUEST_REVISION')"
+                    (click)="performAction('REQUEST_REVISION')">Minta perbaikan</button>
+                  <button class="primary" *ngIf="can('VERIFY')"
+                    (click)="performAction('VERIFY')">Verifikasi dokumen →</button>
+                  <button class="danger-button" *ngIf="can('RETURN')"
+                    (click)="performAction('RETURN')">Kembalikan</button>
+                  <button class="danger-button" *ngIf="can('REJECT')"
+                    (click)="performAction('REJECT')">Tolak</button>
+                  <button class="primary" *ngIf="can('APPROVE')"
+                    (click)="performAction('APPROVE')">Setujui & lanjutkan →</button>
+                  <button class="primary" *ngIf="can('SCHEDULE')"
+                    (click)="performAction('SCHEDULE')">Tetapkan jadwal</button>
+                  <button class="primary" *ngIf="can('COMPLETE')"
+                    (click)="performAction('COMPLETE')">Tandai sudah diserahkan</button>
+                  <button class="primary" *ngIf="can('RESUBMIT')"
+                    (click)="editSelected()">Perbaiki data & dokumen →</button>
+                  <button class="primary" *ngIf="can('EDIT_DRAFT')"
+                    (click)="editSelected()">Lanjutkan draf →</button>
+                  <button class="danger-button" *ngIf="can('CANCEL')"
+                    (click)="performAction('CANCEL')">Batalkan pengajuan</button>
+                </div>
+              </article>
+
+              <article class="panel timeline-card">
+                <span class="eyebrow">RIWAYAT PROSES</span>
+                <div class="timeline">
+                  <div *ngFor="let event of history">
+                    <i></i><span><strong>{{ statusLabels[event.to_status] || event.to_status }}</strong>
+                      <small>{{ event.actor_name || 'Sistem' }} ·
+                        {{ event.created_at | date:'dd MMM, HH:mm' }}</small>
+                      <p *ngIf="event.note">{{ event.note }}</p></span>
+                  </div>
+                </div>
+              </article>
+              <article class="panel timeline-card" *ngIf="user?.role === 'SUPER_ADMIN'">
+                <span class="eyebrow">AUDIT SUPER ADMIN</span>
+                <div class="timeline">
+                  <div *ngFor="let event of auditLogs">
+                    <i></i><span><strong>{{ event.action }}</strong>
+                      <small>{{ event.actor_name || 'Sistem' }} ·
+                        {{ event.created_at | date:'dd MMM yyyy, HH:mm' }}</small></span>
+                  </div>
+                </div>
+              </article>
+            </aside>
+          </div>
+        </ng-container>
+
+        <ng-container *ngIf="activePage === 'users' && hasPage('users')">
+          <div class="page-title"><div><span class="eyebrow">ADMINISTRASI SISTEM</span>
+            <h1>Kelola Pengguna</h1><p>Atur role dan status akun tanpa mengambil keputusan surat.</p>
+          </div><button class="primary" (click)="navigate('new-employee')">＋ Buat Akun Pegawai</button></div>
+          <section class="panel">
+            <div class="user-row user-head"><span>PENGGUNA</span><span>ROLE</span>
+              <span>STATUS</span><span></span></div>
+            <div class="user-row" *ngFor="let item of users">
+              <span class="user-cell"><b class="avatar small">{{ item.name.charAt(0) }}</b>
+                <span><strong>{{ item.name }}</strong><small>{{ item.email }}</small>
+                  <small *ngIf="user?.role === 'SUPER_ADMIN'">
+                    Dibuat: {{ item.created_by_name || 'Sistem' }} ·
+                    Diubah: {{ item.updated_by_name || 'Sistem' }}
+                  </small>
+                </span></span>
+              <span><select [(ngModel)]="item.role"
+                [disabled]="item.role === 'WARGA'
+                  || (item.role === 'SUPER_ADMIN' && user?.role !== 'SUPER_ADMIN')">
+                <option value="WARGA">Warga</option><option value="PETUGAS">Petugas</option>
+                <option value="KASI">Kasi</option><option value="LURAH">Lurah</option>
+                <option value="ADMIN">Administrator</option>
+                <option *ngIf="user?.role === 'SUPER_ADMIN'"
+                  value="SUPER_ADMIN">Super Admin</option>
+              </select></span>
+              <span><label class="switch"><input type="checkbox" [(ngModel)]="item.is_active">
+                <i></i>{{ item.is_active ? 'Aktif' : 'Nonaktif' }}</label></span>
+              <span class="row-actions">
+                <button class="outline-button" (click)="updateUser(item)">Simpan</button>
+                <button class="danger-button" *ngIf="item.id !== user?.id"
+                  (click)="deleteUser(item)">Hapus</button>
+              </span>
+            </div>
+          </section>
+        </ng-container>
+
+        <ng-container *ngIf="activePage === 'new-employee' && hasPage('users')">
+          <button class="back-button" (click)="navigate('users')">← Kembali ke pengguna</button>
+          <div class="page-title"><div><span class="eyebrow">AKUN INTERNAL KELURAHAN</span>
+            <h1>Buat Akun Pegawai</h1>
+            <p>Akun dibuat berdasarkan jabatan dan kewenangan pegawai yang sebenarnya.</p>
+          </div></div>
+          <form class="panel employee-form" (ngSubmit)="createEmployee()">
+            <div class="section-title"><span>1</span><div><h2>Identitas dan akses</h2>
+              <p>Berikan role sesuai pekerjaan pegawai di kantor kelurahan.</p></div></div>
+            <div class="form-grid">
+              <label class="field"><span>Nomor pegawai *</span>
+                <input name="employeeNumber" [(ngModel)]="employeeForm.employeeNumber"
+                  placeholder="Contoh: PGW-BLN-2026-015" required></label>
+              <label class="field"><span>Nama lengkap *</span>
+                <input name="employeeName" [(ngModel)]="employeeForm.name" required></label>
+              <label class="field"><span>Alamat email *</span>
+                <input name="employeeEmail" type="email" [(ngModel)]="employeeForm.email" required></label>
+              <label class="field"><span>Jabatan / role *</span>
+                <select name="employeeRole" [(ngModel)]="employeeForm.role"
+                  (change)="syncEmployeePosition()" required>
+                  <option value="PETUGAS">Petugas Pelayanan</option>
+                  <option value="KASI">Kasi Pemerintahan</option>
+                  <option value="LURAH">Lurah</option>
+                  <option value="ADMIN">Administrator Sistem</option>
+                  <option *ngIf="user?.role === 'SUPER_ADMIN'"
+                    value="SUPER_ADMIN">Super Administrator</option>
+                </select></label>
+              <label class="field"><span>Nomor telepon</span>
+                <input name="employeePhone" [(ngModel)]="employeeForm.phone"></label>
+              <label class="field wide"><span>Jabatan resmi *</span>
+                <input name="employeePosition" [(ngModel)]="employeeForm.position" required></label>
+              <label class="field wide"><span>Password awal (minimal 8 karakter) *</span>
+                <input name="employeePassword" type="password"
+                  [(ngModel)]="employeeForm.password" minlength="8" required>
+                <small class="field-help">Sampaikan password secara langsung kepada pegawai, bukan melalui halaman publik.</small>
+              </label>
+            </div>
+            <div class="form-submit">
+              <p>Administrator tidak memperoleh kewenangan persetujuan surat.</p>
+              <button class="primary" type="submit" [disabled]="busy">
+                {{ busy ? 'Menyimpan...' : 'Buat Akun Pegawai →' }}
+              </button>
+            </div>
+          </form>
+        </ng-container>
+
+        <ng-container *ngIf="activePage === 'permissions' && hasPage('permissions')">
+          <div class="page-title"><div><span class="eyebrow">SUPER ADMIN</span>
+            <h1>Hak Akses Halaman</h1>
+            <p>Pilih halaman yang boleh dibuka setiap pengguna. Perubahan disimpan di PostgreSQL.</p>
+          </div></div>
+          <div class="management-grid">
+            <section class="panel access-users">
+              <div class="panel-heading"><h2>Pilih pengguna</h2></div>
+              <button *ngFor="let item of accessUsers"
+                [class.active]="selectedAccessUser?.id === item.id"
+                (click)="selectAccessUser(item)">
+                <b class="avatar small">{{ item.name.charAt(0) }}</b>
+                <span><strong>{{ item.name }}</strong>
+                  <small>{{ roleLabels[item.role] }} · {{ item.email }}</small></span>
+              </button>
+            </section>
+            <section class="panel permission-editor" *ngIf="selectedAccessUser; else selectUserHint">
+              <div class="panel-heading"><div><span class="eyebrow">CHECKLIST AKSES</span>
+                <h2>{{ selectedAccessUser.name }}</h2>
+                <p>{{ roleLabels[selectedAccessUser.role] }}</p></div></div>
+              <div class="permission-list">
+                <label *ngFor="let page of accessPages">
+                  <input type="checkbox" [(ngModel)]="userPermissionForm[page.code]"
+                    [disabled]="selectedAccessUser.role === 'SUPER_ADMIN'">
+                  <span><strong>{{ page.label }}</strong><small>{{ page.description }}</small></span>
+                </label>
+              </div>
+              <p class="field-help" *ngIf="selectedAccessUser.role === 'SUPER_ADMIN'">
+                Super Admin selalu mempunyai seluruh akses dan tidak dapat dibatasi.
+              </p>
+              <button class="primary" [disabled]="busy || selectedAccessUser.role === 'SUPER_ADMIN'"
+                (click)="savePagePermissions()">Simpan hak akses</button>
+            </section>
+            <ng-template #selectUserHint>
+              <section class="panel empty-state"><div>☑</div>
+                <h3>Pilih pengguna</h3><p>Checklist halaman akan muncul di sini.</p></section>
+            </ng-template>
+          </div>
+        </ng-container>
+
+        <ng-container *ngIf="activePage === 'settings' && hasPage('settings')">
+          <div class="page-title"><div><span class="eyebrow">IDENTITAS WEBSITE</span>
+            <h1>Pengaturan Website</h1>
+            <p>Nama instansi, logo, alamat, penanggung jawab, dan kontak tersimpan di database.</p>
+          </div></div>
+          <form class="panel settings-form" (ngSubmit)="saveSettings()">
+            <div class="settings-logo">
+              <div class="logo-preview">
+                <img *ngIf="settingsForm.logoData" [src]="settingsForm.logoData" alt="Pratinjau logo">
+                <span *ngIf="!settingsForm.logoData">SB</span>
+              </div>
+              <label class="outline-button">Pilih logo
+                <input type="file" accept=".png,.jpg,.jpeg,.webp"
+                  (change)="logoSelected($event)" hidden>
+              </label>
+              <button type="button" class="text-button"
+                (click)="settingsForm.logoData = null">Hapus logo</button>
+            </div>
+            <div class="form-grid">
+              <label class="field wide"><span>Nama instansi / perusahaan *</span>
+                <input name="companyName" [(ngModel)]="settingsForm.companyName" required></label>
+              <label class="field wide"><span>Alamat *</span>
+                <textarea name="siteAddress" [(ngModel)]="settingsForm.address"
+                  rows="3" required></textarea></label>
+              <label class="field wide"><span>Manager / penanggung jawab *</span>
+                <input name="managerName" [(ngModel)]="settingsForm.managerName" required></label>
+              <label class="field"><span>Telepon</span>
+                <input name="contactPhone" [(ngModel)]="settingsForm.contactPhone"></label>
+              <label class="field"><span>WhatsApp</span>
+                <input name="contactWhatsapp" [(ngModel)]="settingsForm.contactWhatsapp"></label>
+              <label class="field wide"><span>Email kontak</span>
+                <input name="contactEmail" type="email"
+                  [(ngModel)]="settingsForm.contactEmail"></label>
+            </div>
+            <div class="audit-note" *ngIf="user?.role === 'SUPER_ADMIN'">
+              Dibuat oleh {{ siteSettings.created_by_name || 'Sistem' }} ·
+              terakhir diubah {{ siteSettings.updated_by_name || 'Sistem' }}
+            </div>
+            <button class="primary" type="submit" [disabled]="busy">Simpan pengaturan</button>
+          </form>
+        </ng-container>
+
+        <ng-container *ngIf="activePage === 'reports' && hasPage('reports')">
+          <div class="page-title"><div><span class="eyebrow">ANALISIS PELAYANAN</span>
+            <h1>Laporan Pengajuan</h1>
+            <p>Pilih periode dan bentuk diagram sesuai kebutuhan laporan.</p>
+          </div></div>
+          <section class="panel report-panel">
+            <div class="report-controls">
+              <label>Periode
+                <select [(ngModel)]="reportPeriod" (change)="loadReport()">
+                  <option value="DAILY">Harian</option>
+                  <option value="WEEKLY">Mingguan</option>
+                  <option value="MONTHLY">Bulanan</option>
+                  <option value="YEARLY">Tahunan</option>
+                </select>
+              </label>
+              <div class="segmented">
+                <button [class.active]="chartType === 'BAR'" (click)="chartType = 'BAR'">
+                  Diagram batang</button>
+                <button [class.active]="chartType === 'PIE'" (click)="chartType = 'PIE'">
+                  Diagram pie</button>
+              </div>
+            </div>
+            <div class="report-summary"><span>Total pengajuan</span>
+              <strong>{{ report.total }}</strong><small>{{ report.label }}</small></div>
+            <div class="bar-chart" *ngIf="chartType === 'BAR'">
+              <div class="bar-column" *ngFor="let item of report.timeline">
+                <b>{{ item.count }}</b>
+                <div><i [style.height]="reportBarHeight(item.count)"></i></div>
+                <span>{{ reportBucketLabel(item.bucket) }}</span>
+              </div>
+              <div class="empty-state" *ngIf="!report.timeline.length">
+                <p>Belum ada data pada periode ini.</p></div>
+            </div>
+            <div class="pie-chart-wrap" *ngIf="chartType === 'PIE'">
+              <div class="pie-chart" [style.background]="pieGradient()">
+                <span><strong>{{ report.total }}</strong><small>pengajuan</small></span>
+              </div>
+              <div class="chart-legend">
+                <div *ngFor="let item of report.statuses; let i = index">
+                  <i [style.background]="reportColor(i)"></i>
+                  <span>{{ statusLabels[item.status] || item.status }}</span><b>{{ item.count }}</b>
+                </div>
+              </div>
+            </div>
+          </section>
+        </ng-container>
+
+        <ng-container *ngIf="activePage === 'income' && hasPage('income')">
+          <div class="page-title"><div><span class="eyebrow">SUPER ADMIN & LURAH</span>
+            <h1>Pendapatan Layanan</h1>
+            <p>Pencatatan ini terpisah dari pengajuan dan hanya terlihat oleh pihak berwenang.</p>
+          </div></div>
+          <section class="income-compare large">
+            <article><span>DAILY · TODAY</span>
+              <strong>{{ incomeSummary.today | currency:'IDR':'symbol':'1.0-0':'id' }}</strong></article>
+            <article><span>DAILY · YESTERDAY</span>
+              <strong>{{ incomeSummary.yesterday | currency:'IDR':'symbol':'1.0-0':'id' }}</strong></article>
+            <article><span>MONTHLY · THIS MONTH</span>
+              <strong>{{ incomeSummary.this_month | currency:'IDR':'symbol':'1.0-0':'id' }}</strong></article>
+            <article><span>MONTHLY · LAST MONTH</span>
+              <strong>{{ incomeSummary.last_month | currency:'IDR':'symbol':'1.0-0':'id' }}</strong></article>
+          </section>
+          <form class="panel inline-form" (ngSubmit)="createIncome()">
+            <label class="field"><span>Tanggal</span>
+              <input name="incomeDate" type="date" [(ngModel)]="incomeForm.entryDate" required></label>
+            <label class="field"><span>Jumlah</span>
+              <input name="incomeAmount" type="number" min="0"
+                [(ngModel)]="incomeForm.amount" required></label>
+            <label class="field grow"><span>Keterangan</span>
+              <input name="incomeDescription" [(ngModel)]="incomeForm.description" required></label>
+            <button class="primary" type="submit" [disabled]="busy">Tambah</button>
+          </form>
+          <section class="panel simple-table">
+            <div class="simple-row head"><span>TANGGAL</span><span>KETERANGAN</span>
+              <span>JUMLAH</span><span></span></div>
+            <div class="simple-row" *ngFor="let item of incomeEntries">
+              <span>{{ item.entry_date | date:'dd MMM yyyy' }}</span>
+              <span><strong>{{ item.description }}</strong>
+                <small *ngIf="user?.role === 'SUPER_ADMIN'">
+                  {{ item.created_by_name || 'Sistem' }}</small></span>
+              <span>{{ item.amount | currency:'IDR':'symbol':'1.0-0':'id' }}</span>
+              <span><button class="danger-button" (click)="deleteIncome(item)">Hapus</button></span>
+            </div>
+          </section>
+        </ng-container>
+
+        <ng-container *ngIf="activePage === 'data-tools' && hasPage('data_tools')">
+          <div class="page-title"><div><span class="eyebrow">PORTABILITAS DATA</span>
+            <h1>Export & Import</h1>
+            <p>Untuk domain SuratApp, “items” adalah data pengajuan dan pendapatan layanan.</p>
+          </div></div>
+          <div class="tools-grid">
+            <section class="panel tool-card"><span class="eyebrow">EXPORT</span>
+              <h2>Unduh data</h2><p>Password tidak pernah ikut dalam file export.</p>
+              <div class="export-groups">
+                <div><strong>Pengguna</strong>
+                  <button (click)="exportData('users','json')">JSON</button>
+                  <button (click)="exportData('users','csv')">CSV</button></div>
+                <div><strong>Pengajuan</strong>
+                  <button (click)="exportData('applications','json')">JSON</button>
+                  <button (click)="exportData('applications','csv')">CSV</button></div>
+                <div><strong>Pendapatan</strong>
+                  <button (click)="exportData('income','json')">JSON</button>
+                  <button (click)="exportData('income','csv')">CSV</button></div>
+              </div>
+            </section>
+            <section class="panel tool-card"><span class="eyebrow">IMPORT</span>
+              <h2>Masukkan data JSON</h2>
+              <label class="field"><span>Jenis data</span>
+                <select [(ngModel)]="importScope">
+                  <option value="users">Pengguna</option>
+                  <option value="applications">Pengajuan</option>
+                  <option value="income">Pendapatan</option>
+                </select></label>
+              <label class="upload-box compact-upload">
+                <input type="file" accept=".json" (change)="importFileSelected($event)">
+                <strong>{{ importFileName || 'Pilih file JSON' }}</strong>
+                <span>{{ importRecords.length }} record terbaca</span>
+              </label>
+              <label class="field" *ngIf="importScope === 'users'">
+                <span>Password sementara pengguna import</span>
+                <input type="password" [(ngModel)]="temporaryImportPassword"
+                  minlength="8"></label>
+              <button class="primary" [disabled]="busy || !importRecords.length"
+                (click)="runImport()">Jalankan import</button>
+            </section>
+          </div>
+        </ng-container>
+
+        <ng-container *ngIf="activePage === 'backups' && hasPage('backups')">
+          <div class="page-title"><div><span class="eyebrow">PEMELIHARAAN DATA</span>
+            <h1>Backup Database</h1>
+            <p>Backup logis disimpan pada volume Docker terpisah dan dapat diunduh.</p>
+          </div><button class="primary" [disabled]="busy" (click)="createBackup()">
+            Buat backup sekarang</button></div>
+          <section class="panel database-health">
+            <div><span class="live-dot"></span><strong>Koneksi PostgreSQL</strong>
+              <p>Periksa ulang koneksi dan schema tanpa menghapus data.</p></div>
+            <button class="outline-button" [disabled]="busy"
+              (click)="recoverDatabaseConnection()">Pulihkan koneksi database</button>
+          </section>
+          <section class="panel simple-table">
+            <div class="simple-row backup-row head"><span>FILE</span><span>UKURAN</span>
+              <span>DIBUAT OLEH</span><span></span></div>
+            <div class="simple-row backup-row" *ngFor="let item of backups">
+              <span><strong>{{ item.filename }}</strong>
+                <small>{{ item.created_at | date:'dd MMM yyyy, HH:mm' }}</small></span>
+              <span>{{ item.size_bytes / 1024 | number:'1.0-0' }} KB</span>
+              <span>{{ item.created_by_name || 'Sistem' }}</span>
+              <span><button class="outline-button" (click)="downloadBackup(item)">
+                Unduh</button></span>
+            </div>
+          </section>
+          <div class="alert info">
+            Restart container PostgreSQL tetap dilakukan dari Docker dengan
+            <code>docker compose restart database</code>; akses Docker tidak diberikan ke website.
+          </div>
+        </ng-container>
+
+        <ng-container *ngIf="activePage === 'trash' && hasPage('trash')">
+          <div class="page-title"><div><span class="eyebrow">SUPER ADMIN</span>
+            <h1>Data Terhapus & Audit</h1>
+            <p>Data menggunakan soft-delete sehingga masih dapat dipulihkan.</p>
+          </div></div>
+          <section class="panel simple-table">
+            <div class="simple-row head"><span>JENIS</span><span>DATA</span>
+              <span>DIHAPUS</span><span></span></div>
+            <div class="simple-row" *ngFor="let item of trashRecords">
+              <span><b class="status warning">{{ item.type }}</b></span>
+              <span><strong>{{ item.title }}</strong><small>{{ item.subtitle }}</small></span>
+              <span>{{ item.deleted_by_name || 'Sistem' }} ·
+                {{ item.deleted_at | date:'dd MMM yyyy, HH:mm' }}</span>
+              <span><button class="primary" (click)="restoreRecord(item)">Pulihkan</button></span>
+            </div>
+            <div class="empty-state" *ngIf="!trashRecords.length">
+              <div>♲</div><h3>Tidak ada data terhapus</h3></div>
+          </section>
+          <section class="panel audit-table">
+            <div class="panel-heading"><h2>Audit terbaru</h2></div>
+            <div class="audit-line" *ngFor="let event of auditLogs">
+              <b>{{ event.action }}</b><span>{{ event.entity_type }} #{{ event.entity_id || '-' }}</span>
+              <span>{{ event.actor_name || 'Sistem' }}</span>
+              <time>{{ event.created_at | date:'dd MMM yyyy, HH:mm' }}</time>
+            </div>
+          </section>
+        </ng-container>
+
+        <ng-container *ngIf="activePage === 'error'">
+          <section class="panel error-page">
+            <span>404</span><h1>Halaman tidak ditemukan</h1>
+            <p>{{ notFoundMessage || 'Halaman yang diminta tidak tersedia.' }}</p>
+            <button class="primary" (click)="navigate('dashboard')">Kembali ke dashboard</button>
+          </section>
+        </ng-container>
+
+        <ng-container *ngIf="activePage === 'profile'">
+          <div class="page-title"><div><span class="eyebrow">AKUN SAYA</span>
+            <h1>Profil & Keamanan</h1>
+            <p>Perbarui data kontak dan lindungi akun dengan password pribadi.</p>
+          </div></div>
+          <div class="profile-grid">
+            <form class="panel profile-card" (ngSubmit)="updateProfile()">
+              <div class="panel-heading"><div><span class="eyebrow">DATA AKUN</span>
+                <h2>Informasi pribadi</h2></div></div>
+              <div class="profile-content">
+                <label class="field" *ngIf="user?.nik"><span>NIK</span>
+                  <input [value]="user?.nik" readonly></label>
+                <label class="field" *ngIf="user?.employeeNumber || user?.employee_number">
+                  <span>Nomor pegawai</span>
+                  <input [value]="user?.employeeNumber || user?.employee_number" readonly></label>
+                <label class="field"><span>Email</span>
+                  <input [value]="user?.email" readonly></label>
+                <label class="field"><span>Nama lengkap *</span>
+                  <input name="profileName" [(ngModel)]="profileForm.name"
+                    [readonly]="user?.role === 'WARGA'" required>
+                  <small *ngIf="user?.role === 'WARGA'">
+                    Koreksi nama identitas harus melalui petugas.
+                  </small>
+                </label>
+                <label class="field"><span>Nomor telepon *</span>
+                  <input name="profilePhone" [(ngModel)]="profileForm.phone" required></label>
+                <label class="field"><span>Alamat lengkap *</span>
+                  <textarea name="profileAddress" [(ngModel)]="profileForm.address"
+                    rows="3" required></textarea></label>
+                <button class="primary" type="submit" [disabled]="busy">Simpan profil</button>
+              </div>
+            </form>
+            <form class="panel profile-card" (ngSubmit)="changePassword()">
+              <div class="panel-heading"><div><span class="eyebrow">KEAMANAN</span>
+                <h2>Ubah password</h2></div></div>
+              <div class="profile-content">
+                <label class="field"><span>Password saat ini *</span>
+                  <input name="currentPassword" type="password"
+                    [(ngModel)]="passwordForm.currentPassword" required></label>
+                <label class="field"><span>Password baru *</span>
+                  <input name="newPassword" type="password"
+                    [(ngModel)]="passwordForm.newPassword" minlength="8" required></label>
+                <label class="field"><span>Konfirmasi password baru *</span>
+                  <input name="confirmNewPassword" type="password"
+                    [(ngModel)]="passwordForm.confirmPassword" minlength="8" required></label>
+                <p class="password-hint">Gunakan minimal 8 karakter dengan huruf besar, huruf kecil, dan angka.</p>
+                <button class="primary" type="submit" [disabled]="busy">Ubah password</button>
+              </div>
+            </form>
+          </div>
+        </ng-container>
+
+        <ng-container *ngIf="activePage === 'flow'">
+          <div class="page-title"><div><span class="eyebrow">PROSEDUR PELAYANAN</span>
+            <h1>Alur Surat Domisili</h1><p>Setiap tahap ditangani sesuai jabatan di kelurahan.</p>
+          </div></div>
+          <section class="flow-grid">
+            <article><b>01</b><span>👤</span><h3>Warga mengajukan</h3>
+              <p>Mengisi data dan mengunggah KTP, KK, serta dokumen pendukung.</p></article>
+            <article><b>02</b><span>🗂️</span><h3>Petugas memeriksa</h3>
+              <p>Memastikan formulir dan dokumen lengkap sebelum diteruskan.</p></article>
+            <article><b>03</b><span>✓</span><h3>Kasi memverifikasi</h3>
+              <p>Memastikan kebenaran data dan wilayah domisili pemohon.</p></article>
+            <article><b>04</b><span>✍️</span><h3>Lurah menyetujui</h3>
+              <p>Memberikan persetujuan akhir dan nomor surat resmi.</p></article>
+            <article><b>05</b><span>✉</span><h3>Surat diserahkan</h3>
+              <p>Petugas menjadwalkan pengambilan dan menyerahkan surat.</p></article>
+          </section>
+        </ng-container>
+      </main>
+    </section>
+  </div>
+</ng-template>
+</ng-container>
+
+<ng-template #global404>
+  <main class="standalone-error">
+    <section class="panel error-page">
+      <span>404</span><h1>Halaman tidak ditemukan</h1>
+      <p>Alamat halaman tidak tersedia pada SuratApp.</p>
+      <button class="primary" (click)="goHomeFrom404()">Kembali ke halaman utama</button>
+    </section>
+  </main>
+</ng-template>
+
+<div class="toast" *ngIf="toast"><span>✓</span>{{ toast }}</div>
+<div class="loading-overlay" *ngIf="busy && user"><div class="spinner"></div></div>
