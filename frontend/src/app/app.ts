@@ -294,10 +294,13 @@ export class App implements OnInit {
   login() {
     this.busy = true;
     this.error = '';
-    this.http.post<{ token: string; user: User }>(`${this.api}/auth/login`, this.loginForm)
+    const credentials = { ...this.loginForm };
+    this.http.post<{ token: string; user: User }>(`${this.api}/auth/login`, credentials)
       .subscribe({
         next: ({ token, user }) => {
           localStorage.setItem('suratapp_token', token);
+          this.loginForm = { email: '', password: '' };
+          this.showLoginPassword = false;
           this.user = user;
           this.syncProfileForm();
           this.busy = false;
@@ -307,8 +310,10 @@ export class App implements OnInit {
         },
         error: (error) => {
           if (error.error?.code === 'EMAIL_NOT_VERIFIED') {
-            this.pendingActivationEmail = this.loginForm.email;
+            this.pendingActivationEmail = credentials.email;
           }
+          this.loginForm.password = '';
+          this.showLoginPassword = false;
           this.handleError(error);
         },
       });
@@ -424,11 +429,97 @@ export class App implements OnInit {
   }
 
   logout() {
+    const token = localStorage.getItem('suratapp_token');
+    if (token) {
+      this.http.post(
+        `${this.api}/auth/logout`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } },
+      ).subscribe({ error: () => {} });
+    }
     localStorage.removeItem('suratapp_token');
     this.user = null;
+    this.loginForm = { email: '', password: '' };
+    this.forgotForm = { identifier: '', channel: 'EMAIL' };
+    this.resetForm = { newPassword: '', confirmPassword: '' };
+    this.registerForm = {
+      nik: '',
+      name: '',
+      email: '',
+      password: '',
+      confirmPassword: '',
+      phone: '',
+      address: '',
+      acceptedTerms: false,
+    };
+    this.employeeForm = {
+      employeeNumber: '',
+      name: '',
+      email: '',
+      password: '',
+      role: 'PETUGAS',
+      position: 'Petugas Pelayanan',
+      phone: '',
+    };
+    this.profileForm = { name: '', phone: '', address: '' };
+    this.passwordForm = { currentPassword: '', newPassword: '', confirmPassword: '' };
+    this.settingsForm = {
+      companyName: '',
+      logoData: null,
+      address: '',
+      managerName: '',
+      contactPhone: '',
+      contactEmail: '',
+      contactWhatsapp: '',
+    };
+    this.incomeForm = {
+      entryDate: new Date().toISOString().slice(0, 10),
+      amount: 0,
+      description: '',
+    };
+    this.applicationForm = {
+      nik: '',
+      fullName: '',
+      birthPlace: 'Batam',
+      birthDate: '',
+      originAddress: '',
+      domicileAddress: '',
+      neighborhood: '',
+      village: 'Belian',
+      district: 'Batam Kota',
+      stayDuration: '',
+      purpose: '',
+    };
     this.applications = [];
     this.users = [];
     this.selected = null;
+    this.history = [];
+    this.accessPages = [];
+    this.accessUsers = [];
+    this.selectedAccessUser = null;
+    this.userPermissionForm = {};
+    this.report = { timeline: [], statuses: [], total: 0 };
+    this.incomeSummary = { today: 0, yesterday: 0, this_month: 0, last_month: 0 };
+    this.incomeEntries = [];
+    this.backups = [];
+    this.trashRecords = [];
+    this.auditLogs = [];
+    this.importRecords = [];
+    this.importFileName = '';
+    this.temporaryImportPassword = '';
+    this.ktpFile = undefined;
+    this.kkFile = undefined;
+    this.supportingFile = undefined;
+    this.editingId = null;
+    this.actionNote = '';
+    this.pickupAt = '';
+    this.pendingActivationEmail = '';
+    this.authNotice = '';
+    this.error = '';
+    this.toast = '';
+    this.busy = false;
+    this.showLoginPassword = false;
+    this.mobileMenu = false;
     this.activePage = 'dashboard';
   }
 
@@ -743,16 +834,47 @@ export class App implements OnInit {
     return this.applications.filter((item) => item.status === status).length;
   }
 
-  pendingForRole() {
+  private taskStatusesForRole() {
     const statuses: Partial<Record<Role, string[]>> = {
       PETUGAS: ['MENUNGGU_PEMERIKSAAN', 'DISETUJUI', 'SIAP_DIAMBIL'],
       KASI: ['DIVERIFIKASI'],
       LURAH: ['MENUNGGU_PERSETUJUAN'],
       WARGA: ['PERLU_DIPERBAIKI'],
     };
-    return this.applications.filter((item) =>
-      (statuses[this.user?.role as Role] ?? []).includes(item.status),
-    ).length;
+    return statuses[this.user?.role as Role] ?? [];
+  }
+
+  tasksForRole() {
+    const statuses = this.taskStatusesForRole();
+    return this.applications.filter((item) => statuses.includes(item.status));
+  }
+
+  pendingForRole() {
+    return this.tasksForRole().length;
+  }
+
+  isWorkflowOfficer() {
+    return ['PETUGAS', 'KASI', 'LURAH'].includes(this.user?.role ?? '');
+  }
+
+  roleTaskDescription() {
+    const descriptions: Partial<Record<Role, string>> = {
+      PETUGAS: 'Periksa kelengkapan awal, jadwalkan pengambilan, dan serahkan surat.',
+      KASI: 'Pastikan kebenaran data serta wilayah domisili sebelum diteruskan kepada Lurah.',
+      LURAH: 'Berikan keputusan dan persetujuan akhir pada pengajuan yang telah diverifikasi.',
+    };
+    return descriptions[this.user?.role as Role] ?? '';
+  }
+
+  taskActionLabel(status: string) {
+    const labels: Record<string, string> = {
+      MENUNGGU_PEMERIKSAAN: 'Periksa formulir dan dokumen',
+      DIVERIFIKASI: 'Verifikasi kebenaran data dan wilayah',
+      MENUNGGU_PERSETUJUAN: 'Berikan keputusan akhir',
+      DISETUJUI: 'Tentukan jadwal pengambilan',
+      SIAP_DIAMBIL: 'Periksa kode lalu serahkan surat',
+    };
+    return labels[status] ?? 'Buka pengajuan';
   }
 
   statusClass(status: string) {
@@ -966,16 +1088,28 @@ export class App implements OnInit {
   importFileSelected(event: Event) {
     const file = (event.target as HTMLInputElement).files?.[0];
     if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      this.importRecords = [];
+      this.importFileName = '';
+      this.error = 'Berkas import maksimal 5 MB.';
+      (event.target as HTMLInputElement).value = '';
+      return;
+    }
     this.importFileName = file.name;
     file.text().then((content) => {
       try {
         const parsed = JSON.parse(content);
         this.importRecords = Array.isArray(parsed) ? parsed : parsed.records;
-        if (!Array.isArray(this.importRecords)) throw new Error();
+        if (!Array.isArray(this.importRecords) || this.importRecords.length > 2000) {
+          throw new Error();
+        }
+        if (!Array.isArray(parsed) && ['users', 'applications', 'income'].includes(parsed.scope)) {
+          this.importScope = parsed.scope;
+        }
         this.error = '';
       } catch {
         this.importRecords = [];
-        this.error = 'Berkas import harus berupa JSON export SuratApp.';
+        this.error = 'Berkas import harus berupa JSON SuratApp dan maksimal 2.000 baris.';
       }
     });
   }
@@ -1015,7 +1149,7 @@ export class App implements OnInit {
     this.http.post(`${this.api}/backups`, {}).subscribe({
       next: () => {
         this.busy = false;
-        this.notify('Backup logis database berhasil dibuat.');
+        this.notify('Cadangan data aplikasi berhasil dibuat.');
         this.loadBackups();
       },
       error: (error) => this.handleError(error),

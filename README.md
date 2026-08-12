@@ -158,8 +158,9 @@ memberi akses penuh kepada dirinya, atau membuat Super Admin baru.
   Export tersedia dalam JSON atau CSV; import memakai JSON maksimal 2.000 baris.
   Password hash tidak pernah diekspor. Pengguna hasil import menerima satu
   password sementara yang ditentukan saat import.
-- **Backup Database** membuat backup logis JSON bertanda checksum dan
-  menyimpannya pada volume `database_backups`. Backup dapat diunduh dari portal.
+- **Cadangan Data** membuat cadangan logis JSON bertanda checksum dan
+  menyimpannya pada volume `database_backups`. Cadangan dapat diunduh dari portal.
+  Fitur ini bukan dump penuh PostgreSQL dan bukan pengganti backup di luar VPS.
 
 Menu pemulihan koneksi memeriksa koneksi PostgreSQL dan memuat ulang schema
 secara aman tanpa menghapus data. Restart container database tetap dilakukan
@@ -212,3 +213,13 @@ Untuk dipasang pada domain:
 Mailpit hanya untuk pengembangan lokal. Pada server produksi, ganti
 `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, dan `SMTP_FROM` dengan
 layanan email resmi.
+
+Paket deployment VPS yang tidak membuka PostgreSQL ke internet tersedia pada:
+
+- `compose.production.yaml`;
+- `.env.production.example`;
+- `deploy/Caddyfile`;
+- `deploy/README.md`.
+
+Jalankan dengan `--env-file .env.production`. Caddy pada stack produksi
+mengelola reverse proxy dan HTTPS setelah DNS domain mengarah ke public IP VPS.

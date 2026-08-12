@@ -86,6 +86,9 @@ header strong { display: block; margin-top: 3px; color: #24334b; font-size: 13px
 .stat-card small { color: #96a09e; font-size: 9px; }
 .panel { border: 1px solid #e1e5e2; border-radius: 13px; background: #fff; box-shadow: 0 4px 18px #23392908; }
 .recent-panel { min-height: 300px; }
+.task-panel { border-top: 3px solid #307665; }
+.task-panel .panel-heading p { max-width: 680px; margin: 6px 0 0; color: #75817e; font-size: 11px; }
+.task-row .doc-icon { background: #e5f4ed; color: #227058; font-weight: 800; }
 .panel-heading { display: flex; align-items: center; justify-content: space-between; padding: 21px 24px; border-bottom: 1px solid #eceeeb; }
 .panel-heading h2, .action-card h2 { margin: 3px 0 0; font: 600 20px Georgia, serif; }
 .text-button, .back-button { border: 0; background: transparent; color: #24715f; font-size: 12px; font-weight: 700; }

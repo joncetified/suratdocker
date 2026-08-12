@@ -34,13 +34,15 @@
           Buka kotak email lokal →
         </a>
 
-        <form *ngIf="!registerMode && !forgotMode && !resetMode" (ngSubmit)="login()">
+        <form *ngIf="!registerMode && !forgotMode && !resetMode"
+          (ngSubmit)="login()" autocomplete="off">
           <label class="field">
             <span>Alamat email</span>
             <div class="input-wrap"><b>＠</b>
               <input name="email" type="email" [(ngModel)]="loginForm.email"
                 (ngModelChange)="clearLoginFeedback()"
-                placeholder="nama@email.com" required>
+                placeholder="nama@email.com" autocomplete="off"
+                autocapitalize="none" spellcheck="false" required>
             </div>
           </label>
           <label class="field">
@@ -48,7 +50,8 @@
             <div class="input-wrap"><b>⌑</b>
               <input name="password" [type]="showLoginPassword ? 'text' : 'password'"
                 [(ngModel)]="loginForm.password"
-                (ngModelChange)="clearLoginFeedback()" required>
+                (ngModelChange)="clearLoginFeedback()"
+                autocomplete="off" required>
               <button class="reveal" type="button"
                 (click)="showLoginPassword = !showLoginPassword">◉</button>
             </div>
@@ -188,7 +191,7 @@
         <button *ngIf="hasPage('data_tools')" [class.active]="activePage === 'data-tools'"
           (click)="navigate('data-tools')"><i>⇄</i> Export / Import</button>
         <button *ngIf="hasPage('backups')" [class.active]="activePage === 'backups'"
-          (click)="navigate('backups')"><i>⛁</i> Backup Database</button>
+          (click)="navigate('backups')"><i>⛁</i> Cadangan Data</button>
         <button *ngIf="hasPage('trash')" [class.active]="activePage === 'trash'"
           (click)="navigate('trash')"><i>♲</i> Data Terhapus</button>
         <button *ngIf="hasPage('profile')" [class.active]="activePage === 'profile'"
@@ -233,7 +236,12 @@
               <span class="eyebrow">SELAMAT DATANG</span>
               <h1>Halo, {{ user?.name?.split(' ')?.[0] }}!</h1>
               <p *ngIf="user?.role === 'WARGA'">Pantau proses surat domisili Anda dari satu tempat.</p>
-              <p *ngIf="user?.role !== 'WARGA'">Berikut kondisi pelayanan surat domisili hari ini.</p>
+              <p *ngIf="isWorkflowOfficer()">
+                {{ roleTaskDescription() }}
+              </p>
+              <p *ngIf="user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN'">
+                Berikut kondisi pelayanan dan administrasi sistem hari ini.
+              </p>
             </div>
             <button *ngIf="user?.role === 'WARGA'" class="primary" (click)="navigate('new')">
               ＋ Ajukan Surat Baru
@@ -278,6 +286,35 @@
                 <strong>{{ incomeSummary.this_month | currency:'IDR':'symbol':'1.0-0':'id' }}</strong></article>
               <article><span>MONTHLY · LAST MONTH</span>
                 <strong>{{ incomeSummary.last_month | currency:'IDR':'symbol':'1.0-0':'id' }}</strong></article>
+            </div>
+          </section>
+
+          <section class="panel task-panel" *ngIf="isWorkflowOfficer()">
+            <div class="panel-heading">
+              <div><span class="eyebrow">TUGAS SESUAI ROLE</span>
+                <h2>Tugas Saya ({{ pendingForRole() }})</h2>
+                <p>{{ roleTaskDescription() }}</p>
+              </div>
+              <button class="text-button" (click)="navigate('applications')">
+                Seluruh pengajuan →
+              </button>
+            </div>
+            <div class="empty-state" *ngIf="tasksForRole().length === 0">
+              <div>✓</div><h3>Tidak ada tugas yang menunggu</h3>
+              <p>Pengajuan baru akan muncul otomatis sesuai tahap dan kewenangan Anda.</p>
+            </div>
+            <div class="application-list compact" *ngIf="tasksForRole().length">
+              <button class="application-row task-row" *ngFor="let item of tasksForRole()"
+                (click)="openDetail(item)">
+                <div class="doc-icon">!</div>
+                <div class="app-main"><strong>{{ item.submission_code }} · {{ item.full_name }}</strong>
+                  <span>{{ taskActionLabel(item.status) }}</span></div>
+                <span class="status" [ngClass]="statusClass(item.status)">
+                  {{ statusLabels[item.status] || item.status }}
+                </span>
+                <span class="date">{{ item.updated_at | date:'dd MMM yyyy':'':'id' }}</span>
+                <span>›</span>
+              </button>
             </div>
           </section>
 
@@ -848,15 +885,15 @@
 
         <ng-container *ngIf="activePage === 'backups' && hasPage('backups')">
           <div class="page-title"><div><span class="eyebrow">PEMELIHARAAN DATA</span>
-            <h1>Backup Database</h1>
-            <p>Backup logis disimpan pada volume Docker terpisah dan dapat diunduh.</p>
+            <h1>Cadangan Data Aplikasi</h1>
+            <p>Cadangan logis JSON disimpan pada volume Docker terpisah dan dapat diunduh.</p>
           </div><button class="primary" [disabled]="busy" (click)="createBackup()">
-            Buat backup sekarang</button></div>
+            Buat cadangan sekarang</button></div>
           <section class="panel database-health">
             <div><span class="live-dot"></span><strong>Koneksi PostgreSQL</strong>
               <p>Periksa ulang koneksi dan schema tanpa menghapus data.</p></div>
             <button class="outline-button" [disabled]="busy"
-              (click)="recoverDatabaseConnection()">Pulihkan koneksi database</button>
+              (click)="recoverDatabaseConnection()">Periksa koneksi dan skema</button>
           </section>
           <section class="panel simple-table">
             <div class="simple-row backup-row head"><span>FILE</span><span>UKURAN</span>
@@ -871,6 +908,8 @@
             </div>
           </section>
           <div class="alert info">
+            Cadangan ini berisi data utama untuk export, pengaturan, dan hak akses pengguna;
+            ini bukan dump penuh PostgreSQL dan bukan pengganti backup VPS.
             Restart container PostgreSQL tetap dilakukan dari Docker dengan
             <code>docker compose restart database</code>; akses Docker tidak diberikan ke website.
           </div>

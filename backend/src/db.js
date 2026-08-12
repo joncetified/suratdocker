@@ -289,7 +289,7 @@ INSERT INTO page_definitions (code,label,description,sort_order) VALUES
   ('reports','Laporan','Laporan harian, mingguan, bulanan, dan tahunan.',70),
   ('income','Pendapatan','Pencatatan serta perbandingan pendapatan.',80),
   ('data_tools','Export / Import','Export dan import pengguna serta data layanan.',90),
-  ('backups','Backup Database','Backup logis dan pemulihan koneksi.',100),
+  ('backups','Cadangan Data','Cadangan logis serta pemeriksaan koneksi dan skema.',100),
   ('trash','Data Terhapus','Pemulihan data soft-delete.',110),
   ('flow','Alur Pelayanan','Informasi alur pelayanan.',120),
   ('profile','Profil','Profil dan keamanan akun.',130)

@@ -1,0 +1,133 @@
+name: suratapp-production
+
+services:
+  database:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-suratapp}
+      POSTGRES_USER: ${POSTGRES_USER:-suratapp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD wajib diisi}
+      TZ: Asia/Jakarta
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    networks:
+      - data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U ${POSTGRES_USER:-suratapp} -d ${POSTGRES_DB:-suratapp}
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+
+  backend:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    init: true
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-suratapp}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD wajib diisi}@database:5432/${POSTGRES_DB:-suratapp}
+      DATABASE_POOL_MAX: 10
+      DATABASE_CONNECTION_TIMEOUT_MS: 5000
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET wajib diisi}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
+      INITIAL_ACCOUNT_PASSWORD: ${INITIAL_ACCOUNT_PASSWORD:?INITIAL_ACCOUNT_PASSWORD wajib diisi}
+      SEED_ACCOUNT_PASSWORD: ${SEED_ACCOUNT_PASSWORD:?SEED_ACCOUNT_PASSWORD wajib diisi}
+      CORS_ORIGIN: https://${DOMAIN:?DOMAIN wajib diisi}
+      PUBLIC_APP_URL: https://${DOMAIN:?DOMAIN wajib diisi}
+      MAIL_DELIVERY_MODE: smtp
+      SMTP_HOST: ${SMTP_HOST:?SMTP_HOST wajib diisi}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:?SMTP_USER wajib diisi}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:?SMTP_PASSWORD wajib diisi}
+      SMTP_FROM: ${SMTP_FROM:?SMTP_FROM wajib diisi}
+      WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN:-}
+      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+      UPLOAD_DIR: /app/uploads
+      BACKUP_DIR: /app/backups
+      TZ: Asia/Jakarta
+    expose:
+      - "3000"
+    volumes:
+      - document_uploads:/app/uploads
+      - database_backups:/app/backups
+    networks:
+      - web
+      - data
+    depends_on:
+      database:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:3000/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    security_opt:
+      - no-new-privileges:true
+
+  frontend:
+    build:
+      context: ./frontend
+    restart: unless-stopped
+    expose:
+      - "80"
+    networks:
+      - web
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -q -O - http://127.0.0.1/ >/dev/null || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+
+  proxy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:?DOMAIN wajib diisi}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - web
+    depends_on:
+      frontend:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  web:
+  data:
+    internal: true
+
+volumes:
+  postgres_data:
+  document_uploads:
+  database_backups:
+  caddy_data:
+  caddy_config:

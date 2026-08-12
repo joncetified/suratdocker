@@ -287,6 +287,14 @@ const incomeEntry = await request('/income', {
     description: 'Pendapatan integrasi',
   },
 }, sessions.lurah.token);
+await request('/income', {
+  method: 'POST',
+  body: {
+    entryDate: '2026-02-31',
+    amount: 1000,
+    description: 'Tanggal kalender tidak valid',
+  },
+}, sessions.lurah.token, 400);
 const incomeSummary = await request('/income/summary', {}, sessions.lurah.token);
 assert(Number(incomeSummary.summary.today) === 150000, 'Ringkasan pendapatan salah.');
 await request(`/income/${incomeEntry.entry.id}`, {
@@ -321,6 +329,26 @@ const importIncome = await request('/data/import', {
   },
 }, sessions.admin.token);
 assert(importIncome.imported === 1, 'Import data gagal.');
+const invalidApplicationImport = await request('/data/import', {
+  method: 'POST',
+  body: {
+    scope: 'applications',
+    records: [{
+      submission_code: 'IMP-TANGGAL-RUSAK',
+      applicant_email: citizenRegistration.email,
+      birth_place: 'Batam',
+      birth_date: '2026-02-31',
+      origin_address: 'Alamat asal untuk pengujian integrasi',
+      domicile_address: 'Alamat domisili untuk pengujian integrasi',
+      stay_duration: '1 tahun',
+      purpose: 'Pengujian validasi import aplikasi',
+    }],
+  },
+}, sessions.admin.token);
+assert(
+  invalidApplicationImport.imported === 0 && invalidApplicationImport.skipped === 1,
+  'Baris import pengajuan yang rusak tidak dilewati dengan aman.',
+);
 
 const backup = await request('/backups', {
   method: 'POST',
@@ -374,6 +402,13 @@ await request(`/trash/USER/${employee.user.id}/restore`, {
 const auditLogs = await request('/audit-logs', {}, sessions.superAdmin.token);
 assert(auditLogs.logs.length > 0, 'Audit created/updated/deleted tidak tercatat.');
 
+const logoutSession = await request('/auth/login', {
+  method: 'POST',
+  body: { email: citizenRegistration.email, password: 'Password789!' },
+});
+await request('/auth/logout', { method: 'POST' }, logoutSession.token);
+await request('/auth/me', {}, logoutSession.token, 401);
+
 console.log(JSON.stringify({
   health: health.status,
   registration: 'ok',
@@ -390,6 +425,7 @@ console.log(JSON.stringify({
   profileAndPassword: 'ok',
   changedPasswordRevokesSession: 'ok',
   inactiveSessionRejected: 'ok',
+  serverSideLogout: 'ok',
   databasePagePermissions: 'ok',
   siteSettings: 'ok',
   reports: 'ok',

@@ -1,0 +1,10 @@
+{$DOMAIN} {
+	encode zstd gzip
+
+	log {
+		output stdout
+		format console
+	}
+
+	reverse_proxy frontend:80
+}

@@ -10,7 +10,9 @@ const normalizeId = (value) => (/^\d+$/.test(String(value)) ? Number(value) : nu
 function csvCell(value) {
   if (value === null || value === undefined) return '';
   const text = typeof value === 'object' ? JSON.stringify(value) : String(value);
-  return `"${text.replaceAll('"', '""')}"`;
+  // Prevent spreadsheet applications from evaluating imported user text as a formula.
+  const safeText = /^[=+\-@]/.test(text) ? `'${text}` : text;
+  return `"${safeText.replaceAll('"', '""')}"`;
 }
 
 function toCsv(records) {
@@ -28,6 +30,13 @@ function validatePassword(password) {
     && /[A-Z]/.test(password)
     && /[a-z]/.test(password)
     && /\d/.test(password);
+}
+
+function isValidIsoDate(value, { allowFuture = true } = {}) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value) return false;
+  return allowFuture || value <= new Date().toISOString().slice(0, 10);
 }
 
 export async function registerSystemRoutes(app, {
@@ -255,7 +264,9 @@ export async function registerSystemRoutes(app, {
       pool.query(
         `SELECT status,COUNT(*)::int AS count
          FROM applications
-         WHERE deleted_at IS NULL ${ownerSql}
+         WHERE deleted_at IS NULL
+           AND created_at>=date_trunc('${selected.trunc}',NOW())-INTERVAL '${selected.interval}'
+           ${ownerSql}
          GROUP BY status ORDER BY status`,
         params,
       ),
@@ -308,7 +319,7 @@ export async function registerSystemRoutes(app, {
     const entryDate = String(request.body?.entryDate ?? '');
     const amount = Number(request.body?.amount);
     const description = String(request.body?.description ?? '').trim();
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(entryDate)
+    if (!isValidIsoDate(entryDate)
       || !Number.isFinite(amount) || amount < 0 || description.length < 3) {
       return reply.badRequest('Tanggal, jumlah, dan keterangan pendapatan wajib valid.');
     }
@@ -329,7 +340,7 @@ export async function registerSystemRoutes(app, {
     const entryDate = String(request.body?.entryDate ?? '');
     const amount = Number(request.body?.amount);
     const description = String(request.body?.description ?? '').trim();
-    if (!id || !/^\d{4}-\d{2}-\d{2}$/.test(entryDate)
+    if (!id || !isValidIsoDate(entryDate)
       || !Number.isFinite(amount) || amount < 0 || description.length < 3) {
       return reply.badRequest('Data pendapatan tidak valid.');
     }
@@ -476,13 +487,31 @@ export async function registerSystemRoutes(app, {
           if (result.rowCount) imported += 1;
           else skipped += 1;
         } else if (scope === 'applications') {
+          const submissionCode = String(item.submission_code ?? '').trim();
+          const birthPlace = String(item.birth_place ?? '').trim();
+          const birthDate = String(item.birth_date ?? '').slice(0, 10);
+          const originAddress = String(item.origin_address ?? '').trim();
+          const domicileAddress = String(item.domicile_address ?? '').trim();
+          const neighborhood = String(item.neighborhood ?? '').trim();
+          const stayDuration = String(item.stay_duration ?? '').trim();
+          const purpose = String(item.purpose ?? '').trim();
+          if (submissionCode.length < 3 || submissionCode.length > 30
+            || birthPlace.length < 2 || birthPlace.length > 80
+            || !isValidIsoDate(birthDate, { allowFuture: false })
+            || originAddress.length < 10 || domicileAddress.length < 10
+            || neighborhood.length > 20
+            || stayDuration.length < 2 || stayDuration.length > 80
+            || purpose.length < 5) {
+            skipped += 1;
+            continue;
+          }
           const applicant = await client.query(
             `SELECT id,nik,name FROM users
              WHERE email=LOWER($1) AND role='WARGA' AND deleted_at IS NULL`,
             [String(item.applicant_email ?? '')],
           );
           const owner = applicant.rows[0];
-          if (!owner || !item.submission_code) {
+          if (!owner) {
             skipped += 1;
             continue;
           }
@@ -495,17 +524,17 @@ export async function registerSystemRoutes(app, {
                'DRAF',$12,$13,$13)
              ON CONFLICT (submission_code) DO NOTHING RETURNING id`,
             [
-              item.submission_code,
+              submissionCode,
               owner.id,
               owner.nik,
               owner.name,
-              item.birth_place || 'Batam',
-              item.birth_date,
-              item.origin_address,
-              item.domicile_address,
-              item.neighborhood || null,
-              item.stay_duration,
-              item.purpose,
+              birthPlace,
+              birthDate,
+              originAddress,
+              domicileAddress,
+              neighborhood || null,
+              stayDuration,
+              purpose,
               'Hasil import; periksa kembali sebelum diajukan.',
               request.user.id,
             ],
@@ -517,7 +546,7 @@ export async function registerSystemRoutes(app, {
           const entryDate = String(item.entry_date ?? '');
           const description = String(item.description ?? '').trim();
           if (!Number.isFinite(amount) || amount < 0
-            || !/^\d{4}-\d{2}-\d{2}$/.test(entryDate) || description.length < 3) {
+            || !isValidIsoDate(entryDate) || description.length < 3) {
             skipped += 1;
             continue;
           }

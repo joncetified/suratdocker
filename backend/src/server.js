@@ -2,6 +2,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
 import multipart from '@fastify/multipart';
+import rateLimit from '@fastify/rate-limit';
 import sensible from '@fastify/sensible';
 import bcrypt from 'bcryptjs';
 import { mkdir, writeFile, readFile, unlink } from 'node:fs/promises';
@@ -19,7 +20,11 @@ if (!jwtSecret || jwtSecret.length < 32) {
   throw new Error('JWT_SECRET wajib diisi dengan minimal 32 karakter.');
 }
 
-const app = Fastify({ logger: true, bodyLimit: 12 * 1024 * 1024 });
+const app = Fastify({
+  logger: true,
+  bodyLimit: 12 * 1024 * 1024,
+  trustProxy: true,
+});
 const uploadDir = process.env.UPLOAD_DIR ?? join(process.cwd(), 'uploads');
 const backupDir = process.env.BACKUP_DIR ?? join(process.cwd(), 'backups');
 const jwtExpiresIn = process.env.JWT_EXPIRES_IN?.trim() || '8h';
@@ -53,9 +58,26 @@ await app.register(cors, {
 });
 await app.register(sensible);
 await app.register(jwt, { secret: jwtSecret });
+await app.register(rateLimit, {
+  global: false,
+  errorResponseBuilder: (_request, context) => ({
+    statusCode: 429,
+    code: 'RATE_LIMITED',
+    message: `Terlalu banyak percobaan. Coba kembali dalam ${context.after}.`,
+  }),
+});
 await app.register(multipart, {
   limits: { files: 5, fileSize: 5 * 1024 * 1024 },
 });
+
+const publicAuthLimits = {
+  register: { config: { rateLimit: { max: 5, timeWindow: '1 hour' } } },
+  verify: { config: { rateLimit: { max: 10, timeWindow: '15 minutes' } } },
+  resend: { config: { rateLimit: { max: 3, timeWindow: '15 minutes' } } },
+  login: { config: { rateLimit: { max: 20, timeWindow: '5 minutes' } } },
+  resetRequest: { config: { rateLimit: { max: 5, timeWindow: '15 minutes' } } },
+  resetConfirm: { config: { rateLimit: { max: 10, timeWindow: '15 minutes' } } },
+};
 
 app.decorate('authenticate', async (request, reply) => {
   await request.jwtVerify();
@@ -247,7 +269,7 @@ app.get('/api/health', async () => {
   return { status: 'ok', service: 'SuratApp Batam API', databaseTime: rows[0].database_time };
 });
 
-app.post('/api/auth/register', async (request, reply) => {
+app.post('/api/auth/register', publicAuthLimits.register, async (request, reply) => {
   const {
     nik, name, email, password, phone, address, acceptedTerms,
   } = request.body ?? {};
@@ -336,7 +358,7 @@ app.post('/api/auth/register', async (request, reply) => {
   }
 });
 
-app.post('/api/auth/verify-email', async (request, reply) => {
+app.post('/api/auth/verify-email', publicAuthLimits.verify, async (request, reply) => {
   const token = String(request.body?.token ?? '').trim();
   if (!/^[a-f0-9]{64}$/.test(token)) return reply.badRequest('Token aktivasi tidak valid.');
   const client = await pool.connect();
@@ -381,7 +403,7 @@ app.post('/api/auth/verify-email', async (request, reply) => {
   }
 });
 
-app.post('/api/auth/resend-activation', async (request, reply) => {
+app.post('/api/auth/resend-activation', publicAuthLimits.resend, async (request, reply) => {
   const email = String(request.body?.email ?? '').trim().toLowerCase();
   const { rows } = await pool.query(
     `SELECT * FROM users
@@ -413,7 +435,7 @@ app.post('/api/auth/resend-activation', async (request, reply) => {
   }
 });
 
-app.post('/api/auth/login', async (request, reply) => {
+app.post('/api/auth/login', publicAuthLimits.login, async (request, reply) => {
   const { email, password } = request.body ?? {};
   const { rows } = await pool.query(
     `SELECT * FROM users
@@ -441,7 +463,10 @@ app.post('/api/auth/login', async (request, reply) => {
   return { token, user: safeUser };
 });
 
-app.post('/api/auth/password-reset/request', async (request, reply) => {
+app.post(
+  '/api/auth/password-reset/request',
+  publicAuthLimits.resetRequest,
+  async (request, reply) => {
   const channel = String(request.body?.channel ?? 'EMAIL').trim().toUpperCase();
   const identifier = String(request.body?.identifier ?? '').trim().toLowerCase();
   if (!['EMAIL', 'WHATSAPP'].includes(channel)) {
@@ -486,9 +511,13 @@ app.post('/api/auth/password-reset/request', async (request, reply) => {
         : 'Layanan WhatsApp belum tersedia. Gunakan pilihan email.',
     );
   }
-});
+  },
+);
 
-app.post('/api/auth/password-reset/confirm', async (request, reply) => {
+app.post(
+  '/api/auth/password-reset/confirm',
+  publicAuthLimits.resetConfirm,
+  async (request, reply) => {
   const token = String(request.body?.token ?? '').trim();
   const newPassword = String(request.body?.newPassword ?? '');
   if (!/^[a-f0-9]{64}$/.test(token)) return reply.badRequest('Token reset tidak valid.');
@@ -531,10 +560,21 @@ app.post('/api/auth/password-reset/confirm', async (request, reply) => {
   } finally {
     client.release();
   }
-});
+  },
+);
 
 app.get('/api/auth/me', { preHandler: app.authenticate }, async (request) => {
   return { user: request.user };
+});
+
+app.post('/api/auth/logout', { preHandler: app.authenticate }, async (request) => {
+  await pool.query(
+    `UPDATE users SET session_version=session_version+1,
+      updated_by=$1,updated_at=NOW() WHERE id=$1`,
+    [request.user.id],
+  );
+  await addAudit(pool, request.user.id, 'LOGOUT', 'USER', request.user.id);
+  return { message: 'Sesi berhasil diakhiri.' };
 });
 
 app.patch('/api/profile', { preHandler: app.authenticate }, async (request, reply) => {
