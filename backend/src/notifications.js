@@ -1,7 +1,7 @@
 import nodemailer from 'nodemailer';
 
 const deliveryMode = process.env.MAIL_DELIVERY_MODE ?? 'smtp';
-const publicAppUrl = (process.env.PUBLIC_APP_URL ?? 'http://localhost:4200').replace(/\/$/, '');
+const publicAppUrl = (process.env.PUBLIC_APP_URL ?? 'http://localhost:85').replace(/\/$/, '');
 
 const transporter = process.env.SMTP_HOST
   ? nodemailer.createTransport({

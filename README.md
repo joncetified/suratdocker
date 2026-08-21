@@ -16,7 +16,7 @@ docker compose ps
 
 Layanan lokal:
 
-- Portal aplikasi: http://localhost:4200
+- Portal aplikasi (Nginx): http://localhost:85
 - Kotak email lokal (Mailpit): http://localhost:8025
 - API health: http://localhost:3000/api/health
 - PostgreSQL dari Windows: `127.0.0.1:5433`
@@ -52,7 +52,7 @@ Pemeriksaan koneksi dan data:
 
 ```powershell
 docker compose ps
-curl.exe http://localhost:4200/api/health
+curl.exe http://localhost:85/api/health
 docker compose exec -T database psql -U suratapp -d suratapp -c "SELECT current_database(), current_user;"
 ```
 
