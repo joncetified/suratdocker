@@ -52,7 +52,7 @@ async function removeNewFiles(files) {
 }
 
 await app.register(cors, {
-  origin: (process.env.CORS_ORIGIN ?? 'http://localhost:85')
+  origin: (process.env.CORS_ORIGIN ?? 'http://localhost:4200')
     .split(',')
     .map((origin) => origin.trim()),
 });

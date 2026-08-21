@@ -36,8 +36,8 @@ services:
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
       INITIAL_ACCOUNT_PASSWORD: ${INITIAL_ACCOUNT_PASSWORD:?INITIAL_ACCOUNT_PASSWORD wajib diisi di file .env}
       SEED_ACCOUNT_PASSWORD: ${SEED_ACCOUNT_PASSWORD:?SEED_ACCOUNT_PASSWORD wajib diisi di file .env}
-      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:85}
-      PUBLIC_APP_URL: ${PUBLIC_APP_URL:-http://localhost:85}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:4200}
+      PUBLIC_APP_URL: ${PUBLIC_APP_URL:-http://localhost:4200}
       MAIL_PREVIEW_URL: ${MAIL_PREVIEW_URL:-http://localhost:8025}
       MAIL_DELIVERY_MODE: ${MAIL_DELIVERY_MODE:-smtp}
       SMTP_HOST: ${SMTP_HOST:-mailpit}
@@ -89,7 +89,7 @@ services:
     container_name: suratapp-frontend
     restart: unless-stopped
     ports:
-      - "${BIND_ADDRESS:-127.0.0.1}:${FRONTEND_PORT:-85}:80"
+      - "${BIND_ADDRESS:-127.0.0.1}:${FRONTEND_PORT:-4200}:80"
     depends_on:
       backend:
         condition: service_healthy

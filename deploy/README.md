@@ -7,7 +7,8 @@ tidak dapat menjalankan stack ini.
 ## Arsitektur
 
 - Caddy membuka port 80 dan 443 serta mengelola HTTPS.
-- Frontend Angular/Nginx hanya dapat diakses melalui Caddy.
+- Frontend Angular/Nginx dipetakan ke port host `85:80` untuk kebutuhan deployment;
+  akses domain publik tetap melalui Caddy pada port 80/443.
 - Frontend meneruskan `/api` ke backend Fastify pada jaringan Docker.
 - PostgreSQL hanya berada pada jaringan internal dan tidak mempunyai port host.
 - Dokumen, backup logis, database, serta sertifikat menggunakan named volume.
